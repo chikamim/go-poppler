@@ -1,10 +1,11 @@
 package poppler
 
-// #cgo pkg-config: --cflags-only-I poppler-glib
+// #cgo pkg-config: poppler-glib
 // #include <poppler.h>
 // #include <glib.h>
 import "C"
 import "unsafe"
+
 //import "fmt"
 
 type Page struct {
@@ -20,12 +21,11 @@ func (p *Page) TextAttributes() (results []TextAttributes) {
 	defer C.poppler_page_free_text_attributes(a)
 	var attr *C.PopplerTextAttributes
 	results = make([]TextAttributes, 0)
-	el := C.g_list_first(a);
+	el := C.g_list_first(a)
 	for el != nil {
 		attr = (*C.PopplerTextAttributes)(el.data)
-		fn := *attr.font_name
 		result := TextAttributes{
-			FontName:     toString(&fn),
+			FontName:     toString(attr.font_name),
 			FontSize:     float64(attr.font_size),
 			IsUnderlined: toBool(attr.is_underlined),
 			StartIndex:   int(attr.start_index),
@@ -88,7 +88,7 @@ func (p *Page) TextLayout() (layouts []Rectangle) {
 	if toBool(C.poppler_page_get_text_layout(p.p, &rect, &n)) {
 		defer C.g_free((C.gpointer)(rect))
 		layouts = make([]Rectangle, int(n))
-        r := (*[1 << 30]C.PopplerRectangle)(unsafe.Pointer(rect))[:n:n]
+		r := (*[1 << 30]C.PopplerRectangle)(unsafe.Pointer(rect))[:n:n]
 		for i := 0; i < int(n); i++ {
 			layouts[i] = Rectangle{
 				X1: float64(r[i].x1),
@@ -101,12 +101,11 @@ func (p *Page) TextLayout() (layouts []Rectangle) {
 	return
 }
 
-
 func (p *Page) TextLayoutAndAttrs() (result []TextEl) {
 	text := p.Text()
 	attrs := p.TextAttributes()
 	layout := p.TextLayout()
-	result = make([]TextEl, len(layout))	
+	result = make([]TextEl, len(layout))
 	attrsRef := make([]*TextAttributes, len(attrs))
 	for i, a := range attrs {
 		attr := a
@@ -121,9 +120,9 @@ func (p *Page) TextLayoutAndAttrs() (result []TextEl) {
 			}
 		}
 		result[i] = TextEl{
-			Text : string(t),
+			Text:  string(t),
 			Attrs: a,
-			Rect : layout[i],
+			Rect:  layout[i],
 		}
 		i++
 	}

@@ -10,5 +10,5 @@ func toString(in *C.gchar) string {
 }
 
 func toBool(in C.gboolean) bool {
-	return  int(in) > 0
+	return int(in) > 0
 }

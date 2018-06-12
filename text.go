@@ -1,7 +1,5 @@
 package poppler
 
-import ()
-
 type TextEl struct {
 	Text  string
 	Attrs *TextAttributes
