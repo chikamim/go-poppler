@@ -10,6 +10,7 @@ package poppler
 #include <stdlib.h>
 #include <string.h>
 #include <cairo.h>
+#include <cairo/cairo-svg.h>
 static unsigned char getbyte(unsigned char *buf, int idx) {
 	return buf[idx];
 }
@@ -236,6 +237,56 @@ func (p *Page) GetSize() (int, int) {
 	height := C.double(0)
 	C.poppler_page_get_size(p.p, &width, &height)
 	return int(width), int(height)
+}
+
+func (p *Page) WriteToSVG(filename string, opts *RenderOptions) cairo.Status {
+	width, height := p.GetSize()
+	size := 64
+	if opts != nil {
+		width = int(opts.Scale * float64(width))
+		height = int(opts.Scale * float64(height))
+		size = opts.MemorySize
+	}
+	cs := C.CString(filename)
+	defer C.free(unsafe.Pointer(cs))
+	surface := C.cairo_svg_surface_create(cs, C.double(width), C.double(height))
+	C.cairo_svg_surface_restrict_to_version(surface, C.cairo_svg_version_t(cairo.SVG_VERSION_1_2))
+	defer C.cairo_surface_destroy(surface)
+	// TODO: refactor with WriteToPNGStream
+
+	ctx := C.cairo_create(surface)
+	defer C.cairo_destroy(ctx)
+
+	ow, oh := p.Size()
+	fw := float64(width)
+	fh := float64(height)
+	sw, sh := float64(fw/ow), float64(fh/oh)
+	C.cairo_scale(ctx, C.double(sw), C.double(sh))
+
+	fillColor := color.RGBA{255, 255, 255, 255}
+	if opts != nil {
+		fillColor = opts.FillColor
+	}
+	C.cairo_set_source_rgba(ctx, C.double(float64(fillColor.R)/float64(255)),
+		C.double(float64(fillColor.G)/float64(255)),
+		C.double(float64(fillColor.B)/float64(255)),
+		C.double(float64(fillColor.A)/float64(255)))
+	C.cairo_rectangle(ctx, 0, 0, C.double(width), C.double(height))
+	C.cairo_fill(ctx)
+
+	if opts != nil && opts.NoAA {
+		C.cairo_set_antialias(ctx, C.CAIRO_ANTIALIAS_NONE)
+	}
+
+	C.poppler_page_render_for_printing(p.p, ctx)
+
+	vec := C.cairo_wrap_vector_new(C.int(size))
+	defer C.cairo_wrap_vector_free(vec)
+
+	status := cairo.Status(C.cairo_wrap_write_surface_to_vector(surface, vec))
+	//buf := C.GoBytes(unsafe.Pointer(vec.buf), C.int(vec.len))
+
+	return status
 }
 
 func (p *Page) WriteToPNGStream(opts *RenderOptions) ([]byte, cairo.Status) {
